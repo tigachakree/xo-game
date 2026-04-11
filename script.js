@@ -42,6 +42,82 @@ let board = Array(9).fill(null); // null | "X" | "O"
 let currentPlayer = PLAYER_X;
 let gameActive = false;
 let botThinking = false;
+let audioContext = null;
+
+function getAudioContext() {
+  if (!window.AudioContext && !window.webkitAudioContext) return null;
+
+  if (!audioContext) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioContext = new AudioContextClass();
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume().catch(() => {});
+  }
+
+  return audioContext;
+}
+
+function playTone(options) {
+  const context = getAudioContext();
+  if (!context) return;
+
+  const {
+    frequency,
+    duration = 0.14,
+    startTime = 0,
+    type = "sine",
+    volume = 0.03,
+    attack = 0.01,
+    release = 0.08,
+  } = options;
+
+  const oscillator = context.createOscillator();
+  const gainNode = context.createGain();
+  const noteStart = context.currentTime + startTime;
+  const noteEnd = noteStart + duration;
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, noteStart);
+  gainNode.gain.setValueAtTime(0.0001, noteStart);
+  gainNode.gain.exponentialRampToValueAtTime(volume, noteStart + attack);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, noteEnd + release);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(context.destination);
+
+  oscillator.start(noteStart);
+  oscillator.stop(noteEnd + release);
+}
+
+function playUiTap() {
+  playTone({ frequency: 520, duration: 0.05, type: "triangle", volume: 0.02, release: 0.05 });
+  playTone({ frequency: 700, duration: 0.04, startTime: 0.025, type: "triangle", volume: 0.015, release: 0.04 });
+}
+
+function playMoveSound(player) {
+  if (player === PLAYER_X) {
+    playTone({ frequency: 320, duration: 0.08, type: "triangle", volume: 0.035, release: 0.06 });
+    playTone({ frequency: 430, duration: 0.07, startTime: 0.05, type: "triangle", volume: 0.025, release: 0.05 });
+    return;
+  }
+
+  playTone({ frequency: 540, duration: 0.08, type: "sine", volume: 0.03, release: 0.06 });
+  playTone({ frequency: 680, duration: 0.08, startTime: 0.05, type: "sine", volume: 0.024, release: 0.05 });
+}
+
+function playWinSound() {
+  playTone({ frequency: 523.25, duration: 0.12, type: "triangle", volume: 0.03, release: 0.08 });
+  playTone({ frequency: 659.25, duration: 0.14, startTime: 0.09, type: "triangle", volume: 0.034, release: 0.08 });
+  playTone({ frequency: 783.99, duration: 0.18, startTime: 0.18, type: "triangle", volume: 0.038, release: 0.12 });
+}
+
+function playDrawSound() {
+  playTone({ frequency: 392, duration: 0.12, type: "sine", volume: 0.022, release: 0.08 });
+  playTone({ frequency: 349.23, duration: 0.14, startTime: 0.1, type: "sine", volume: 0.02, release: 0.08 });
+  playTone({ frequency: 329.63, duration: 0.16, startTime: 0.2, type: "sine", volume: 0.018, release: 0.1 });
+}
 
 // ===== สร้างช่องกระดาน =====
 function buildBoardUI() {
@@ -63,6 +139,9 @@ function showMenu() {
   menuEl.classList.remove("hidden");
   gameEl.classList.add("hidden");
   mode = null;
+
+  // Restore the default split red/blue background on the menu screen.
+  document.body.classList.remove("turn-x", "turn-o");
 }
 
 function showGame() {
@@ -72,6 +151,7 @@ function showGame() {
 
 // ===== เริ่ม/รีเซ็ตเกม =====
 function startGame(selectedMode) {
+  playUiTap();
   mode = selectedMode;
   modeLabelEl.textContent = mode === "bot" ? "Mode: Play vs Bot" : "Mode: Two Players";
 
@@ -161,6 +241,12 @@ function endGame(message, winLine = null) {
   if (winLine) highlightWin(winLine);
   updateStatus(message);
   render();
+
+  if (winLine) {
+    playWinSound();
+  } else {
+    playDrawSound();
+  }
 }
 
 // ===== การเล่น: คลิกช่อง =====
@@ -176,6 +262,7 @@ function onCellClick(e) {
   if (mode === "bot" && currentPlayer !== PLAYER_X) return;
 
   placeMark(index, currentPlayer);
+  playMoveSound(currentPlayer);
 
   const winnerInfo = getWinnerInfo(board);
   if (winnerInfo) {
@@ -222,6 +309,7 @@ function botMoveWithDelay() {
     if (index === -1) return;
 
     placeMark(index, PLAYER_O);
+    playMoveSound(PLAYER_O);
 
     const winnerInfo = getWinnerInfo(board);
     if (winnerInfo) {
@@ -290,6 +378,7 @@ btnBot.addEventListener("click", () => startGame("bot"));
 
 btnNew.addEventListener("click", () => {
   if (!mode) return;
+  playUiTap();
   resetGameState();
   
   // Set initial background color
@@ -305,6 +394,7 @@ btnNew.addEventListener("click", () => {
 });
 
 btnBack.addEventListener("click", () => {
+  playUiTap();
   // กลับเมนูและหยุดเกมปัจจุบัน
   gameActive = false;
   botThinking = false;
