@@ -23,6 +23,7 @@ const btnBack = document.getElementById("btnBack");
 const PLAYER_X = "X";
 const PLAYER_O = "O";
 const BOT_DELAY_MS = 500;
+const SOUND_VOLUME_MULTIPLIER = 20;
 
 // รูปแบบเส้นที่ชนะ (index ของช่อง 0..8)
 const WIN_LINES = [
@@ -77,11 +78,12 @@ function playTone(options) {
   const gainNode = context.createGain();
   const noteStart = context.currentTime + startTime;
   const noteEnd = noteStart + duration;
+  const finalVolume = Math.min(volume * SOUND_VOLUME_MULTIPLIER, 0.4);
 
   oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, noteStart);
   gainNode.gain.setValueAtTime(0.0001, noteStart);
-  gainNode.gain.exponentialRampToValueAtTime(volume, noteStart + attack);
+  gainNode.gain.exponentialRampToValueAtTime(finalVolume, noteStart + attack);
   gainNode.gain.exponentialRampToValueAtTime(0.0001, noteEnd + release);
 
   oscillator.connect(gainNode);
